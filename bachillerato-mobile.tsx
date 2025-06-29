@@ -5,7 +5,19 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Lock, ChevronLeft, ChevronRight, Plus, Shuffle, Settings, X } from "lucide-react"
+import {
+  Lock,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Shuffle,
+  Settings,
+  X,
+  Trophy,
+  Target,
+  Star,
+  TrendingUp,
+} from "lucide-react"
 
 const DEFAULT_CATEGORIES = [
   "Nombre",
@@ -32,10 +44,26 @@ type GameRound = {
   hasSelectedStatus: boolean[]
 }
 
+type GameStats = {
+  totalPoints: number
+  totalRounds: number
+  averagePoints: number
+  bestRound: { round: number; points: number; letter: string }
+  worstRound: { round: number; points: number; letter: string }
+  categoryStats: { category: string; correct: number; unique: number; total: number }[]
+  letterStats: { letter: string; points: number }[]
+  totalCorrect: number
+  totalUnique: number
+  totalIncorrect: number
+  totalRepeated: number
+}
+
 export default function Component() {
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES)
   const [editingCategories, setEditingCategories] = useState(false)
   const [newCategory, setNewCategory] = useState("")
+  const [targetRounds, setTargetRounds] = useState(5)
+  const [gameFinished, setGameFinished] = useState(false)
 
   const [rounds, setRounds] = useState<GameRound[]>([])
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0)
@@ -82,7 +110,18 @@ export default function Component() {
     setRounds(newRounds)
     setCurrentRoundIndex(newRounds.length - 1)
     setLetterInput("")
-    setEditingCategories(false) // Cerrar edición al empezar
+    setEditingCategories(false)
+  }
+
+  const finishGame = () => {
+    setGameFinished(true)
+  }
+
+  const restartGame = () => {
+    setRounds([])
+    setCurrentRoundIndex(0)
+    setGameFinished(false)
+    setTotalPoints(0)
   }
 
   const updateRoundLetter = (newLetter: string) => {
@@ -245,6 +284,81 @@ export default function Component() {
     }
   }
 
+  const calculateGameStats = (): GameStats => {
+    const lockedRounds = rounds.filter((r) => r.locked)
+    const totalPoints = lockedRounds.reduce((sum, round) => sum + round.points, 0)
+
+    const bestRound = lockedRounds.reduce(
+      (best, round, index) =>
+        round.points > best.points ? { round: index + 1, points: round.points, letter: round.letter } : best,
+      { round: 1, points: 0, letter: "" },
+    )
+
+    const worstRound = lockedRounds.reduce(
+      (worst, round, index) =>
+        round.points < worst.points ? { round: index + 1, points: round.points, letter: round.letter } : worst,
+      { round: 1, points: 999, letter: "" },
+    )
+
+    const categoryStats = categories.map((category) => {
+      const categoryIndex = categories.indexOf(category)
+      let correct = 0,
+        unique = 0,
+        total = 0
+
+      lockedRounds.forEach((round) => {
+        const status = round.status[categoryIndex]
+        total++
+        if (status === "correct") correct++
+        if (status === "unique") unique++
+      })
+
+      return { category, correct, unique, total }
+    })
+
+    const letterStats = lockedRounds.map((round, index) => ({
+      letter: round.letter,
+      points: round.points,
+    }))
+
+    let totalCorrect = 0,
+      totalUnique = 0,
+      totalIncorrect = 0,
+      totalRepeated = 0
+    lockedRounds.forEach((round) => {
+      round.status.forEach((status) => {
+        switch (status) {
+          case "correct":
+            totalCorrect++
+            break
+          case "unique":
+            totalUnique++
+            break
+          case "incorrect":
+            totalIncorrect++
+            break
+          case "repeated":
+            totalRepeated++
+            break
+        }
+      })
+    })
+
+    return {
+      totalPoints,
+      totalRounds: lockedRounds.length,
+      averagePoints: lockedRounds.length > 0 ? Math.round(totalPoints / lockedRounds.length) : 0,
+      bestRound,
+      worstRound: worstRound.points === 999 ? bestRound : worstRound,
+      categoryStats,
+      letterStats,
+      totalCorrect,
+      totalUnique,
+      totalIncorrect,
+      totalRepeated,
+    }
+  }
+
   useEffect(() => {
     const total = rounds.reduce((sum, round) => sum + round.points, 0)
     setTotalPoints(total)
@@ -292,6 +406,150 @@ export default function Component() {
     }
   }
 
+  // Pantalla de estadísticas finales
+  if (gameFinished) {
+    const stats = calculateGameStats()
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-md mx-auto space-y-4">
+          <Card className="shadow-lg">
+            <CardHeader className="text-center">
+              <CardTitle className="text-3xl font-bold text-indigo-700 flex items-center justify-center gap-2">
+                <Trophy className="w-8 h-8" />
+                ¡Juego Terminado!
+              </CardTitle>
+              <p className="text-gray-600">Aquí están tus estadísticas</p>
+            </CardHeader>
+          </Card>
+
+          {/* Estadísticas generales */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Target className="w-5 h-5" />
+                Resumen General
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center p-3 bg-indigo-50 rounded-lg">
+                  <div className="text-2xl font-bold text-indigo-700">{stats.totalPoints}</div>
+                  <div className="text-sm text-gray-600">Puntos Totales</div>
+                </div>
+                <div className="text-center p-3 bg-green-50 rounded-lg">
+                  <div className="text-2xl font-bold text-green-700">{stats.averagePoints}</div>
+                  <div className="text-sm text-gray-600">Promedio por Ronda</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center p-3 bg-blue-50 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-700">{stats.totalRounds}</div>
+                  <div className="text-sm text-gray-600">Rondas Jugadas</div>
+                </div>
+                <div className="text-center p-3 bg-purple-50 rounded-lg">
+                  <div className="text-2xl font-bold text-purple-700">
+                    {Math.round(
+                      ((stats.totalCorrect + stats.totalUnique) /
+                        (stats.totalCorrect + stats.totalUnique + stats.totalIncorrect + stats.totalRepeated)) *
+                        100,
+                    )}
+                    %
+                  </div>
+                  <div className="text-sm text-gray-600">Efectividad</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Mejores y peores rondas */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Star className="w-5 h-5" />
+                Mejores y Peores Rondas
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="p-3 bg-green-50 rounded-lg">
+                <div className="font-semibold text-green-800">🏆 Mejor Ronda</div>
+                <div className="text-sm text-gray-600">
+                  Ronda {stats.bestRound.round} (Letra {stats.bestRound.letter}): {stats.bestRound.points} puntos
+                </div>
+              </div>
+              <div className="p-3 bg-red-50 rounded-lg">
+                <div className="font-semibold text-red-800">📉 Ronda Más Difícil</div>
+                <div className="text-sm text-gray-600">
+                  Ronda {stats.worstRound.round} (Letra {stats.worstRound.letter}): {stats.worstRound.points} puntos
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Estadísticas por categoría */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                Rendimiento por Categoría
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {stats.categoryStats.map((cat, index) => (
+                  <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                    <span className="text-sm font-medium">{cat.category}</span>
+                    <div className="flex gap-2 text-xs">
+                      <Badge variant="secondary" className="bg-green-100 text-green-800">
+                        {cat.unique} únicos
+                      </Badge>
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                        {cat.correct} correctos
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Distribución de respuestas */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Distribución de Respuestas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="text-center p-2 bg-green-50 rounded">
+                  <div className="font-bold text-green-700">{stats.totalUnique}</div>
+                  <div className="text-xs text-gray-600">Únicos</div>
+                </div>
+                <div className="text-center p-2 bg-blue-50 rounded">
+                  <div className="font-bold text-blue-700">{stats.totalCorrect}</div>
+                  <div className="text-xs text-gray-600">Correctos</div>
+                </div>
+                <div className="text-center p-2 bg-orange-50 rounded">
+                  <div className="font-bold text-orange-700">{stats.totalRepeated}</div>
+                  <div className="text-xs text-gray-600">Repetidos</div>
+                </div>
+                <div className="text-center p-2 bg-red-50 rounded">
+                  <div className="font-bold text-red-700">{stats.totalIncorrect}</div>
+                  <div className="text-xs text-gray-600">Incorrectos</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Botón para jugar de nuevo */}
+          <Button onClick={restartGame} className="w-full" size="lg">
+            <Plus className="w-4 h-4 mr-2" />
+            Jugar de Nuevo
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <div className="max-w-md mx-auto space-y-4">
@@ -301,7 +559,12 @@ export default function Component() {
             <CardContent className="p-4">
               <div className="flex justify-between items-center">
                 <h1 className="text-xl font-bold text-indigo-700">🎯 Bachillerato</h1>
-                <Badge className="text-lg px-3 py-1 bg-indigo-600">{totalPoints} pts</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="text-sm">
+                    {rounds.filter((r) => r.locked).length}/{targetRounds}
+                  </Badge>
+                  <Badge className="text-lg px-3 py-1 bg-indigo-600">{totalPoints} pts</Badge>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -370,12 +633,21 @@ export default function Component() {
           </Card>
         )}
 
-        {/* Botón nueva ronda cuando hay rondas */}
+        {/* Botón nueva ronda o finalizar */}
         {rounds.length > 0 && (
-          <Button onClick={createNewRound} className="w-full flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            Nueva Ronda
-          </Button>
+          <>
+            {rounds.filter((r) => r.locked).length < targetRounds ? (
+              <Button onClick={createNewRound} className="w-full flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Nueva Ronda ({rounds.filter((r) => r.locked).length}/{targetRounds})
+              </Button>
+            ) : (
+              <Button onClick={finishGame} className="w-full flex items-center gap-2 bg-green-600 hover:bg-green-700">
+                <Trophy className="w-4 h-4" />
+                Finalizar Juego
+              </Button>
+            )}
+          </>
         )}
 
         {/* Ronda actual */}
@@ -527,15 +799,43 @@ export default function Component() {
           </>
         )}
 
-        {/* Pantalla inicial con configuración de categorías */}
+        {/* Pantalla inicial con configuración */}
         {rounds.length === 0 && (
           <Card className="shadow-lg">
             <CardHeader className="text-center">
               <CardTitle className="text-3xl font-bold text-indigo-700">🎯 Bachillerato</CardTitle>
               <h2 className="text-xl font-bold">¡Empecemos a jugar!</h2>
-              <p className="text-gray-600 text-sm">Configura las categorías y presiona "Nueva Ronda"</p>
+              <p className="text-gray-600 text-sm">Configura tu juego y presiona "Nueva Ronda"</p>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Selector de número de rondas */}
+              <div className="space-y-3">
+                <h3 className="font-semibold">Número de Rondas</h3>
+                <div className="flex gap-2">
+                  {[3, 5, 7, 10].map((num) => (
+                    <Button
+                      key={num}
+                      onClick={() => setTargetRounds(num)}
+                      variant={targetRounds === num ? "default" : "outline"}
+                      className="flex-1"
+                    >
+                      {num}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    type="number"
+                    value={targetRounds}
+                    onChange={(e) => setTargetRounds(Math.max(1, Number.parseInt(e.target.value) || 1))}
+                    className="w-20 text-center"
+                    min="1"
+                    max="20"
+                  />
+                  <span className="text-sm text-gray-600">rondas personalizadas</span>
+                </div>
+              </div>
+
               {/* Configuración de categorías */}
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
@@ -589,7 +889,7 @@ export default function Component() {
               {/* Botón para empezar */}
               <Button onClick={createNewRound} className="w-full" size="lg">
                 <Plus className="w-4 h-4 mr-2" />
-                Nueva Ronda
+                Empezar Juego ({targetRounds} rondas)
               </Button>
 
               {/* Instrucciones */}
