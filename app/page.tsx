@@ -1,7 +1,5 @@
-"use client"
-
 import Component from "../bachillerato-mobile"
 
-export default function Page() {
+export default function Home() {
   return <Component />
 }
